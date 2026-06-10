@@ -1,3 +1,30 @@
-.venv/
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
 .env
+.venv/
+env/
+venv/
+ENV/
+
+# SQLite databases (local simulation data)
+data/*.db
+data/*.db-journal
+data/*.sqlite
+data/*.sqlite3
+
+# IDEs and editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db

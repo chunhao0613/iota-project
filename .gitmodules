@@ -1,0 +1,3 @@
+[submodule "thaumio"]
+	path = thaumio
+	url = https://github.com/chunhao0613/Thaumio.git
