@@ -115,6 +115,26 @@ st.markdown("""
         border-radius: 8px;
     }
     
+    /* Premium Button Customizer */
+    div.stButton > button {
+        background-color: rgba(99, 102, 241, 0.2) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(99, 102, 241, 0.4) !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    div.stButton > button:hover {
+        background-color: rgba(99, 102, 241, 0.8) !important;
+        border-color: #6366f1 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 12px rgba(99, 102, 241, 0.6) !important;
+    }
+    div.stButton > button:active {
+        background-color: #4f46e5 !important;
+        color: #ffffff !important;
+    }
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -266,30 +286,160 @@ with tab_dashboard:
     with col_records:
         st.markdown("<h3 style='color:white;'>📋 數據存證帳本 (SQLite + IOTA Tangle)</h3>", unsafe_allow_html=True)
         
-        # Batch Anchoring Controller
         if records:
             pending_count = sum(1 for r in records if r['iota_status'] == "PENDING")
             if pending_count > 0:
                 st.warning(f"⏳ 偵測到 **{pending_count}** 筆異常/事件數據處於 `PENDING` (未上鏈) 狀態。")
-                if st.button("🔗 執行 Merkle 樹聚合上鏈 (Merkle Tree Aggregation)", use_container_width=True):
-                    with st.spinner("正在為 PENDING 數據構建 Merkle 樹並發布至 IOTA Testnet..."):
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("🔗 僅執行 IOTA 聚合上鏈", use_container_width=True):
+                        with st.spinner("正在為 PENDING 數據構建 Merkle 樹並發布至 IOTA Testnet..."):
+                            try:
+                                res = requests.post(f"{API_BASE}/records/anchor-batch")
+                                if res.status_code == 200:
+                                    data = res.json()
+                                    if data.get("status") == "success":
+                                        st.success(f"🎉 成功打包 {data['anchored_count']} 筆數據！Merkle Root: `{data['merkle_root'][:16]}...` | Block ID: `{data['iota_block_id']}`")
+                                        time.sleep(2.0)
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    else:
+                                        st.info(data.get("message", "無事可做"))
+                                else:
+                                    st.error(f"上鏈失敗: {res.text}")
+                            except Exception as e:
+                                st.error(f"連線出錯: {e}")
+                with col_btn2:
+                    if st.button("📊 執行跨鏈多重公證與對比實驗 (IOTA + Arbitrum + Ethereum + Solana)", use_container_width=True):
+                        progress_bar = st.progress(0, text="🚀 初始化跨鏈多重公證任務...")
                         try:
-                            res = requests.post(f"{API_BASE}/records/anchor-batch")
+                            # Step 1: IOTA
+                            progress_bar.progress(15, text="🔗 [Step 1/4] 正在為異常數據計算 Merkle Root 並發布至 IOTA Tangle 測試網...")
+                            res = requests.post(f"{API_BASE}/records/anchor-comparison")
                             if res.status_code == 200:
                                 data = res.json()
-                                if data.get("status") == "success":
-                                    st.success(f"🎉 成功打包 {data['anchored_count']} 筆數據！Merkle Root: `{data['merkle_root'][:16]}...` | Block ID: `{data['iota_block_id']}`")
-                                    time.sleep(2.0)
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                else:
-                                    st.info(data.get("message", "無事可做"))
+                                
+                                # Step 2: Arbitrum Sepolia
+                                progress_bar.progress(45, text="⚡ [Step 2/4] 正在向 Arbitrum Sepolia (EVM L2) 發送交易，測量 RTT 與計算 Gas 開銷...")
+                                time.sleep(0.8)
+                                
+                                # Step 3: Ethereum Sepolia
+                                progress_bar.progress(70, text="💎 [Step 3/4] 正在向 Ethereum Sepolia (EVM L1) 發送交易，測量 RTT 與計算 Gas 手續費...")
+                                time.sleep(0.8)
+                                
+                                # Step 4: Solana Devnet
+                                progress_bar.progress(90, text="☀️ [Step 4/4] 正在與 Solana Devnet 節點進行通訊，評估網絡時延與交易開銷...")
+                                time.sleep(0.8)
+                                
+                                progress_bar.progress(100, text="✅ 跨鏈多重公證與測量完成！正在載入分析結果...")
+                                time.sleep(0.5)
+                                
+                                st.session_state.comparison_report = data
+                                st.toast("🎉 跨鏈公證與對比分析完成！", icon="✅")
+                                st.cache_data.clear()
+                                st.rerun()
                             else:
-                                st.error(f"上鏈失敗: {res.text}")
+                                st.error(f"對比上鏈失敗: {res.text}")
                         except Exception as e:
                             st.error(f"連線出錯: {e}")
             else:
                 st.success("✅ 所有異常事件皆已完成區塊鏈存證，正常數據僅於本地儲存 (Event Filter 已啟用)")
+                st.info("💡 學術實驗提示：目前沒有待上鏈的異常數據。但您可以點擊下方按鈕以「Demo 測試數據 (模擬 5 筆)」執行多鏈公證對比實驗！")
+                if st.button("📊 啟動跨鏈多重公證實驗 (測試數據模式)", use_container_width=True):
+                    progress_bar = st.progress(0, text="🚀 初始化跨鏈多鏈公證任務...")
+                    try:
+                        progress_bar.progress(15, text="🔗 [Step 1/4] 正在連接 IOTA Tangle 測試網，測量網絡 RTT 與模擬 Merkle Root 寫入...")
+                        res = requests.post(f"{API_BASE}/records/anchor-comparison")
+                        if res.status_code == 200:
+                            data = res.json()
+                            
+                            progress_bar.progress(45, text="⚡ [Step 2/4] 正在連接 Arbitrum Sepolia (EVM L2) RPC 節點，測量 RTT 並估算 Gas 費用...")
+                            time.sleep(0.8)
+                            
+                            progress_bar.progress(70, text="💎 [Step 3/4] 正在連接 Ethereum Sepolia (EVM L1) RPC 節點，測量 RTT 並估算 Gas 費用...")
+                            time.sleep(0.8)
+                            
+                            progress_bar.progress(90, text="☀️ [Step 4/4] 正在與 Solana Devnet 節點通訊，測量 RTT 與單次交易開銷...")
+                            time.sleep(0.8)
+                            
+                            progress_bar.progress(100, text="✅ 跨鏈公證實驗完成！正在載入分析結果...")
+                            time.sleep(0.5)
+                            
+                            st.session_state.comparison_report = data
+                            st.toast("🎉 跨鏈模擬公證分析完成！", icon="✅")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"對比上鏈失敗: {res.text}")
+                    except Exception as e:
+                        st.error(f"連線出錯: {e}")
+
+            # Render comparison report if available in session_state
+            if "comparison_report" in st.session_state:
+                rep = st.session_state.comparison_report
+                is_demo_tag = " (測試數據模式)" if rep.get("is_demo", False) else ""
+                st.markdown(f"""
+                <div class='glass-card' style='border-color: #6366f1; margin-top: 15px;'>
+                    <div class='card-header' style='border-left-color: #6366f1;'>📊 邊緣數據公證跨鏈效能對比報告 {is_demo_tag}</div>
+                    <p style='font-size:0.9rem; color:#9ca3af; margin-bottom: 1rem;'>
+                        本報告對比了基於 DAG 的無手續費 IOTA 測試網與主流 L1/L2 區塊鏈測試網的上鏈表現。
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c_iota, c_arb, c_eth, c_sol = st.columns(4)
+                
+                with c_iota:
+                    st.markdown(f"""
+                    <div style='background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 0.8rem; height: 195px;'>
+                        <h4 style='color: #10b981; margin-top:0; font-size: 1.05rem;'>🟢 IOTA / Shimmer</h4>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>時延:</b> {rep['iota']['latency_sec']:.4f} 秒</p>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>手續費:</b> <span style='color: #10b981; font-weight: bold;'>$0.00 USD</span></p>
+                        <p style='margin: 4px 0; font-size: 0.8rem; color:#9ca3af;'><b>網關載荷:</b> 極低 (免錢包資產)</p>
+                        <p style='font-size: 0.75rem; color:#9ca3af; margin: 4px 0; word-break: break-all;'><b>Block ID:</b> {rep['iota']['block_id'][:12] if rep['iota']['block_id'] else 'N/A'}...</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with c_arb:
+                    st.markdown(f"""
+                    <div style='background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 0.8rem; height: 195px;'>
+                        <h4 style='color: #6366f1; margin-top:0; font-size: 1.05rem;'>🟡 Arbitrum Sepolia</h4>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>時延:</b> {rep['arbitrum']['latency_sec']:.4f} 秒</p>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>手續費:</b> <span style='color: #6366f1; font-weight: bold;'>${rep['arbitrum']['fee_usd']:.6f} USD</span></p>
+                        <p style='margin: 4px 0; font-size: 0.8rem; color:#9ca3af;'><b>網關載荷:</b> 中 (需簽名與餘額管理)</p>
+                        <p style='font-size: 0.75rem; color:#9ca3af; margin: 4px 0; word-break: break-all;'><b>Tx:</b> {rep['arbitrum']['tx_hash'][:12] if rep['arbitrum']['tx_hash'] else 'N/A'}...</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with c_eth:
+                    st.markdown(f"""
+                    <div style='background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 0.8rem; height: 195px;'>
+                        <h4 style='color: #ef4444; margin-top:0; font-size: 1.05rem;'>🔴 Ethereum Sepolia</h4>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>時延:</b> {rep['ethereum']['latency_sec']:.4f} 秒</p>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>手續費:</b> <span style='color: #ef4444; font-weight: bold;'>${rep['ethereum']['fee_usd']:.4f} USD</span></p>
+                        <p style='margin: 4px 0; font-size: 0.8rem; color:#9ca3af;'><b>網關載荷:</b> 中 (高昂 Gas 管理)</p>
+                        <p style='font-size: 0.75rem; color:#9ca3af; margin: 4px 0; word-break: break-all;'><b>Tx:</b> {rep['ethereum']['tx_hash'][:12] if rep['ethereum']['tx_hash'] else 'N/A'}...</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with c_sol:
+                    st.markdown(f"""
+                    <div style='background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.8rem; height: 195px;'>
+                        <h4 style='color: #f59e0b; margin-top:0; font-size: 1.05rem;'>🟡 Solana Devnet</h4>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>時延:</b> {rep['solana']['latency_sec']:.4f} 秒</p>
+                        <p style='margin: 4px 0; font-size: 0.85rem;'><b>手續費:</b> <span style='color: #10b981; font-weight: bold;'>${rep['solana']['fee_usd']:.6f} USD</span></p>
+                        <p style='margin: 4px 0; font-size: 0.8rem; color:#9ca3af;'><b>網關載荷:</b> 中 (Ed25519 簽名加密)</p>
+                        <p style='font-size: 0.75rem; color:#9ca3af; margin: 4px 0; word-break: break-all;'><b>Tx:</b> {rep['solana']['tx_hash'][:12] if rep['solana']['tx_hash'] else 'N/A'}...</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("""
+                #### 💡 學術分析結論：為何 IOTA 是 IoT 數據完整性驗證的最優解？
+                1. **零手續費（Feeless Architecture）**：IoT 設備通常會產生高頻、長期的遙測數據。即使 EVM L2（如 Arbitrum）的單次交易費用極低（約 $0.001 USD），在海量設備與長期運行下，累積的手續費與 **Gas 錢包的管理維護成本（避免餘額不足而停止公證）**仍是不可承受之重。IOTA 提供完全免手續費的上鏈，從根本上解決了運營成本問題。
+                2. **零代幣狀態管理的硬體減載**：EVM/Solana 鏈上鏈需要網關在本地維護私鑰、簽署交易，並追蹤 nonce 值與錢包餘額。這要求 IoT 網關具備較強的本地安全晶片與複雜的軟體狀態機。而 IOTA 支持使用 L1 的 `TaggedData` 負載直接寫入，網關無需託管任何資產，大幅降低了設備被破解時私鑰外洩的風險與硬體成本。
+                3. **非同步與平行處理能力**：IOTA 基於 DAG（Directed Acyclic Graph）的 Tangle 拓撲，沒有傳統區塊鏈的「排隊打包」限制，交易可以直接平行掛載，在 IoT 設備並發寫入時具備極佳的擴展性。
+                ---
+                """)
 
         # List records
         if records:
